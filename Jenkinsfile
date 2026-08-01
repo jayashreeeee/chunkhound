@@ -70,25 +70,39 @@ pipeline {
         }
 
         stage('Archive') {
-            steps {
-                sh 'ls -lh dist'
-            }
-        }
+    steps {
+        sh '''
+            echo "Listing dist directory"
+            ls -lh dist
+        '''
+        archiveArtifacts artifacts: 'dist/*', fingerprint: true
     }
-
+}
  
-   post {
-
-    success {
-        script {
-            if (fileExists('dist')) {
-                archiveArtifacts artifacts: 'dist/*', fingerprint: true
-                echo 'Artifacts archived successfully.'
-            } else {
-                echo 'No dist directory found.'
-            }
-        }
+stage('Verify Build Output') {
+    steps {
+        sh '''
+            pwd
+            ls -la
+            ls -la dist || true
+        '''
     }
+}
+
+
+  post {
+    success {
+        echo 'Build Successful'
+    }
+
+    failure {
+        echo 'Build Failed'
+    }
+
+    always {
+        cleanWs()
+    }
+} 
 
     failure {
         echo 'Build failed.'
