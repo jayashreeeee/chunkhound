@@ -72,19 +72,18 @@ pipeline {
 
     }   // <-- closes stages
 
-    post {
+post {
 
-        success {
-            echo 'Build Successful'
-        }
-
-        failure {
-            echo 'Build Failed'
-        }
-
-        always {
-            cleanWs()
-        }
+    success {
+        echo 'Build Successful'
+        archiveArtifacts artifacts: 'dist/*', fingerprint: true
     }
 
-}   // <-- closes pipeline
+    failure {
+        echo 'Build Failed'
+    }
+
+    always {
+        cleanWs()
+    }
+}
