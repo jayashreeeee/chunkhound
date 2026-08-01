@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
+        UV_PYTHON = "/opt/homebrew/bin/python3"
     }
 
     options {
@@ -20,21 +21,26 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
-                    echo "========== Environment =========="
-                    pwd
+                    echo "===== Environment ====="
 
                     echo "PATH=$PATH"
 
-                    echo "Python Version:"
                     which python3
                     python3 --version
 
-                    echo "UV Version:"
-                    which uv || true
-                    /opt/homebrew/bin/uv --version
+                    echo "Homebrew Python"
+                    /opt/homebrew/bin/python3 --version
 
-                    echo "Git Version:"
-                    git --version
+                    echo "UV"
+                    /opt/homebrew/bin/uv --version
+                '''
+            }
+        }
+
+        stage('Create Virtual Environment') {
+            steps {
+                sh '''
+                    /opt/homebrew/bin/uv venv --python /opt/homebrew/bin/python3
                 '''
             }
         }
@@ -47,7 +53,7 @@ pipeline {
             }
         }
 
-        stage('Build Package') {
+        stage('Build') {
             steps {
                 sh '''
                     /opt/homebrew/bin/uv build
@@ -63,31 +69,16 @@ pipeline {
             }
         }
 
-        stage('Verify Artifacts') {
+        stage('Archive') {
             steps {
-                sh '''
-                    echo "Contents of dist directory:"
-                    ls -lh dist
-                '''
+                sh 'ls -lh dist'
             }
         }
     }
 
     post {
-
         success {
-            script {
-                if (fileExists('dist')) {
-                    archiveArtifacts artifacts: 'dist/*', fingerprint: true
-                } else {
-                    echo "dist directory not found. Skipping artifact archive."
-                }
-            }
-            echo "Build completed successfully."
-        }
-
-        failure {
-            echo "Build failed. Check the stage logs above for the root cause."
+            archiveArtifacts artifacts: 'dist/*', fingerprint: true
         }
 
         always {
