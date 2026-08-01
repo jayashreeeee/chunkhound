@@ -21,17 +21,8 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
-                    echo "===== Environment ====="
-
-                    echo "PATH=$PATH"
-
                     which python3
                     python3 --version
-
-                    echo "Homebrew Python"
-                    /opt/homebrew/bin/python3 --version
-
-                    echo "UV"
                     /opt/homebrew/bin/uv --version
                 '''
             }
@@ -69,47 +60,31 @@ pipeline {
             }
         }
 
-        stage('Archive') {
-    steps {
-        sh '''
-            echo "Listing dist directory"
-            ls -lh dist
-        '''
-        archiveArtifacts artifacts: 'dist/*', fingerprint: true
-    }
-}
- 
-stage('Verify Build Output') {
-    steps {
-        sh '''
-            pwd
-            ls -la
-            ls -la dist || true
-        '''
-    }
-}
+        stage('Verify Build Output') {
+            steps {
+                sh '''
+                    pwd
+                    ls -la
+                    ls -la dist || true
+                '''
+            }
+        }
 
+    }   // <-- closes stages
 
-  post {
-    success {
-        echo 'Build Successful'
-    }
+    post {
 
-    failure {
-        echo 'Build Failed'
+        success {
+            echo 'Build Successful'
+        }
+
+        failure {
+            echo 'Build Failed'
+        }
+
+        always {
+            cleanWs()
+        }
     }
 
-    always {
-        cleanWs()
-    }
-} 
-
-    failure {
-        echo 'Build failed.'
-    }
-
-    always {
-        cleanWs()
-    }
-}
-}
+}   // <-- closes pipeline
