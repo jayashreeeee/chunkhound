@@ -76,13 +76,25 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            archiveArtifacts artifacts: 'dist/*', fingerprint: true
-        }
+ 
+   post {
 
-        always {
-            cleanWs()
+    success {
+        script {
+            if (fileExists('dist')) {
+                archiveArtifacts artifacts: 'dist/*', fingerprint: true
+                echo 'Artifacts archived successfully.'
+            } else {
+                echo 'No dist directory found.'
+            }
         }
+    }
+
+    failure {
+        echo 'Build failed.'
+    }
+
+    always {
+        cleanWs()
     }
 }
