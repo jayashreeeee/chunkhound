@@ -25,15 +25,15 @@ pipeline {
 
                     echo "PATH=$PATH"
 
-                    echo "Python:"
-                    which python3 || true
-                    python3 --version || true
+                    echo "Python Version:"
+                    which python3
+                    python3 --version
 
-                    echo "UV:"
+                    echo "UV Version:"
                     which uv || true
-                    uv --version
+                    /opt/homebrew/bin/uv --version
 
-                    echo "Git:"
+                    echo "Git Version:"
                     git --version
                 '''
             }
@@ -42,9 +42,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    export PATH="/opt/homebrew/bin:$PATH"
-
-                    uv sync
+                    /opt/homebrew/bin/uv sync
                 '''
             }
         }
@@ -52,9 +50,7 @@ pipeline {
         stage('Build Package') {
             steps {
                 sh '''
-                    export PATH="/opt/homebrew/bin:$PATH"
-
-                    uv build
+                    /opt/homebrew/bin/uv build
                 '''
             }
         }
@@ -62,17 +58,15 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
-                    export PATH="/opt/homebrew/bin:$PATH"
-
-                    uv run chunkhound --help
+                    /opt/homebrew/bin/uv run chunkhound --help
                 '''
             }
         }
 
-        stage('Verify Build Artifacts') {
+        stage('Verify Artifacts') {
             steps {
                 sh '''
-                    echo "Artifacts generated:"
+                    echo "Contents of dist directory:"
                     ls -lh dist
                 '''
             }
@@ -82,12 +76,18 @@ pipeline {
     post {
 
         success {
-            archiveArtifacts artifacts: 'dist/*', fingerprint: true
-            echo 'Build Successful'
+            script {
+                if (fileExists('dist')) {
+                    archiveArtifacts artifacts: 'dist/*', fingerprint: true
+                } else {
+                    echo "dist directory not found. Skipping artifact archive."
+                }
+            }
+            echo "Build completed successfully."
         }
 
         failure {
-            echo 'Build Failed'
+            echo "Build failed. Check the stage logs above for the root cause."
         }
 
         always {
