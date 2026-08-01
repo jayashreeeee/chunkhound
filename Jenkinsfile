@@ -85,11 +85,6 @@ pipeline {
 
         success {
             echo 'Build Successful'
-
-            archiveArtifacts(
-                artifacts: 'dist/*',
-                fingerprint: true
-            )
         }
 
         failure {
@@ -97,6 +92,10 @@ pipeline {
         }
 
         always {
+            archiveArtifacts artifacts: 'dist/*',
+                             fingerprint: true,
+                             allowEmptyArchive: true
+
             cleanWs()
         }
     }
