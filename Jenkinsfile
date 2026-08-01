@@ -2,7 +2,11 @@ pipeline {
     agent any
 
     environment {
-        PATH = "$HOME/.local/bin:${env.PATH}"
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
+    }
+
+    options {
+        timestamps()
     }
 
     stages {
@@ -16,14 +20,21 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
-                    echo "Current Directory:"
+                    echo "========== Environment =========="
                     pwd
 
-                    echo "Python Version:"
-                    python3 --version
+                    echo "PATH=$PATH"
 
-                    echo "UV Version:"
+                    echo "Python:"
+                    which python3 || true
+                    python3 --version || true
+
+                    echo "UV:"
+                    which uv || true
                     uv --version
+
+                    echo "Git:"
+                    git --version
                 '''
             }
         }
@@ -31,6 +42,8 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
+                    export PATH="/opt/homebrew/bin:$PATH"
+
                     uv sync
                 '''
             }
@@ -39,6 +52,8 @@ pipeline {
         stage('Build Package') {
             steps {
                 sh '''
+                    export PATH="/opt/homebrew/bin:$PATH"
+
                     uv build
                 '''
             }
@@ -47,14 +62,17 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
+                    export PATH="/opt/homebrew/bin:$PATH"
+
                     uv run chunkhound --help
                 '''
             }
         }
 
-        stage('List Artifacts') {
+        stage('Verify Build Artifacts') {
             steps {
                 sh '''
+                    echo "Artifacts generated:"
                     ls -lh dist
                 '''
             }
@@ -62,13 +80,14 @@ pipeline {
     }
 
     post {
+
         success {
             archiveArtifacts artifacts: 'dist/*', fingerprint: true
-            echo 'Build completed successfully.'
+            echo 'Build Successful'
         }
 
         failure {
-            echo 'Build failed.'
+            echo 'Build Failed'
         }
 
         always {
