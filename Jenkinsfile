@@ -1,9 +1,14 @@
 pipeline {
     agent any
 
+    tools {
+        sonarQubeScanner 'SonarScanner'
+    }
+
     environment {
-        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
-        UV_PYTHON = "/opt/homebrew/bin/python3"
+        UV = "/opt/homebrew/bin/uv"
+        PYTHON = "/opt/homebrew/bin/python3"
+        SCANNER_HOME = tool 'SonarScanner'
     }
 
     options {
@@ -21,14 +26,12 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
-                    echo "===== Environment ====="
-                    echo "PATH=$PATH"
-
-                    which python3
-                    python3 --version
-
-                    /opt/homebrew/bin/python3 --version
-                    /opt/homebrew/bin/uv --version
+                echo "===== Environment ====="
+                echo "PATH=$PATH"
+                which python3
+                python3 --version
+                $PYTHON --version
+                $UV --version
                 '''
             }
         }
@@ -36,7 +39,7 @@ pipeline {
         stage('Create Virtual Environment') {
             steps {
                 sh '''
-                    /opt/homebrew/bin/uv venv --python /opt/homebrew/bin/python3
+                $UV venv --python $PYTHON
                 '''
             }
         }
@@ -44,7 +47,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    /opt/homebrew/bin/uv sync
+                $UV sync
                 '''
             }
         }
@@ -52,7 +55,7 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    /opt/homebrew/bin/uv build
+                $UV build
                 '''
             }
         }
@@ -60,31 +63,58 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
-                    /opt/homebrew/bin/uv run chunkhound --help
+                $UV run chunkhound --help
                 '''
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                        ${SCANNER_HOME}/bin/sonar-scanner \
+                          -Dsonar.projectKey=chunkhound \
+                          -Dsonar.projectName=chunkhound \
+                          -Dsonar.sources=. \
+                          -Dsonar.python.version=3 \
+                          -Dsonar.host.url=http://localhost:9000 \
+                          -Dsonar.token=$SONAR_TOKEN
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
             }
         }
 
         stage('Verify Build Output') {
             steps {
                 sh '''
-                    echo "Current directory:"
-                    pwd
+                echo "Current directory:"
+                pwd
 
-                    echo "Workspace contents:"
-                    ls -la
+                echo "Workspace contents:"
+                ls -la
 
-                    echo "Dist contents:"
-                    ls -la dist
+                echo "Dist contents:"
+                ls -la dist
                 '''
             }
         }
     }
 
     post {
-
         success {
-            echo 'Build Successful'
+            archiveArtifacts artifacts: 'dist/**/*', fingerprint: true
+            cleanWs()
+            echo 'Build and SonarQube Analysis Successful'
         }
 
         failure {
@@ -92,11 +122,7 @@ pipeline {
         }
 
         always {
-            archiveArtifacts artifacts: 'dist/*',
-                             fingerprint: true,
-                             allowEmptyArchive: true
-
-            cleanWs()
+            echo 'Pipeline Finished'
         }
     }
 }
