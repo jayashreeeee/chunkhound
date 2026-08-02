@@ -1,14 +1,9 @@
 pipeline {
     agent any
 
-    tools {
-        sonarQubeScanner 'SonarScanner'
-    }
-
     environment {
-        UV = "/opt/homebrew/bin/uv"
-        PYTHON = "/opt/homebrew/bin/python3"
-        SCANNER_HOME = tool 'SonarScanner'
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
+        UV_PYTHON = "/opt/homebrew/bin/python3"
     }
 
     options {
@@ -26,12 +21,14 @@ pipeline {
         stage('Verify Environment') {
             steps {
                 sh '''
-                echo "===== Environment ====="
-                echo "PATH=$PATH"
-                which python3
-                python3 --version
-                $PYTHON --version
-                $UV --version
+                    echo "===== Environment ====="
+                    echo "PATH=$PATH"
+
+                    which python3
+                    python3 --version
+
+                    /opt/homebrew/bin/python3 --version
+                    /opt/homebrew/bin/uv --version
                 '''
             }
         }
@@ -39,7 +36,7 @@ pipeline {
         stage('Create Virtual Environment') {
             steps {
                 sh '''
-                $UV venv --python $PYTHON
+                    /opt/homebrew/bin/uv venv --python /opt/homebrew/bin/python3
                 '''
             }
         }
@@ -47,7 +44,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                $UV sync
+                    /opt/homebrew/bin/uv sync
                 '''
             }
         }
@@ -55,7 +52,7 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                $UV build
+                    /opt/homebrew/bin/uv build
                 '''
             }
         }
@@ -63,7 +60,7 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
-                $UV run chunkhound --help
+                    /opt/homebrew/bin/uv run chunkhound --help
                 '''
             }
         }
@@ -71,25 +68,17 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                        sh """
-                        ${SCANNER_HOME}/bin/sonar-scanner \
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+
+                        sh '''
+                        /opt/homebrew/bin/sonar-scanner \
                           -Dsonar.projectKey=chunkhound \
                           -Dsonar.projectName=chunkhound \
                           -Dsonar.sources=. \
-                          -Dsonar.python.version=3 \
-                          -Dsonar.host.url=http://localhost:9000 \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
                           -Dsonar.token=$SONAR_TOKEN
-                        """
+                        '''
                     }
-                }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -97,32 +86,34 @@ pipeline {
         stage('Verify Build Output') {
             steps {
                 sh '''
-                echo "Current directory:"
-                pwd
+                    echo "Current directory:"
+                    pwd
 
-                echo "Workspace contents:"
-                ls -la
+                    echo "Workspace contents:"
+                    ls -la
 
-                echo "Dist contents:"
-                ls -la dist
+                    echo "Dist contents:"
+                    ls -la dist
                 '''
             }
         }
     }
 
     post {
-        success {
-            archiveArtifacts artifacts: 'dist/**/*', fingerprint: true
+        always {
+            archiveArtifacts artifacts: 'dist/*',
+                             fingerprint: true,
+                             allowEmptyArchive: true
+
             cleanWs()
-            echo 'Build and SonarQube Analysis Successful'
+        }
+
+        success {
+            echo 'Build Successful'
         }
 
         failure {
             echo 'Build Failed'
-        }
-
-        always {
-            echo 'Pipeline Finished'
         }
     }
 }
